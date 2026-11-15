@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Prueba 4 · video directo</title>
+<style>
+ body{margin:0;padding:14px;background:#0b0b0b;color:#eee;font:15px/1.45 system-ui,sans-serif}
+ h1{font-size:18px;margin:0 0 6px} h2{font-size:15px;margin:16px 0 4px;color:#fbbf24}
+ p,li{color:#bbb;margin:6px 0} a{color:#7cc4ff} code{color:#fbbf24}
+ button{font:600 15px system-ui;padding:12px 14px;margin:6px 6px 6px 0;border:0;border-radius:8px;background:#1f6feb;color:#fff}
+ button.sec{background:#374151}
+ #log{white-space:pre-wrap;word-break:break-word;font:12px/1.4 ui-monospace,monospace;background:#000;border:1px solid #333;border-radius:8px;padding:8px;max-height:46vh;overflow:auto}
+ .ok{color:#4ade80}.bad{color:#f87171}.warn{color:#fbbf24}
+ #verdict{font:600 14px system-ui;padding:10px;border-radius:8px;background:#1f2937;margin:8px 0}
+ video{display:block;width:100%;background:#000;border-radius:8px}
+ iframe{display:block;width:100%;aspect-ratio:16/9;border:0;border-radius:8px;background:#000}
+ input{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid #444;background:#111;color:#eee;font:14px ui-monospace,monospace}
+ textarea{display:none;width:100%;box-sizing:border-box;height:160px;background:#000;color:#ddd;font:11px ui-monospace,monospace}
+ table{border-collapse:collapse;width:100%;font-size:13px} td,th{border:1px solid #333;padding:6px;text-align:left;vertical-align:top}
+</style></head><body>
+<h1>Prueba 4 · &lt;video&gt; directo con la CDN de Bunny</h1>
+<p>Comprueba la arquitectura alternativa: reproducir el archivo de Bunny con una etiqueta <code>&lt;video&gt;</code> normal de tu propia página (sin iframe).</p>
+<p>Hostname del CDN de tu biblioteca (formato <code>vz-xxxxxxxx-xxx.b-cdn.net</code>; lo ves en el panel de Bunny Stream o en la pestaña Red del navegador de escritorio al reproducir el vídeo):</p>
+<input id="h" placeholder="vz-xxxxxxxx-xxx.b-cdn.net" autocapitalize="off" autocomplete="off" spellcheck="false">
+<button onclick="load('mp4_720')">MP4 720p</button>
+<button onclick="load('mp4_360')">MP4 360p</button>
+<button class="sec" onclick="load('hls')">HLS (m3u8)</button>
+<video id="v" controls playsinline preload="metadata"></video>
+<button onclick="jsPlay(false)">▶ play() con sonido (toque)</button>
+<button class="sec" onclick="jsPlay(true)">▶ play() muteado (toque)</button>
+<div id="verdict">Veredicto: elige un formato</div>
+<p>Si el MP4 da error 404: en Bunny, Biblioteca → Encoding → activar «MP4 Fallback» (consulta el panel; puede requerir volver a procesar el vídeo).</p>
+<h2>Informe</h2>
+<button class="sec" onclick="copyReport()">Copiar / mostrar informe</button>
+<div id="log"></div><textarea id="rep" readonly></textarea>
+<script>
+
+var T0=performance.now(), LOGEL=document.getElementById('log'), LINES=[];
+function log(msg, cls){
+  var t=((performance.now()-T0)/1000).toFixed(2), line='['+t+'s] '+msg; LINES.push(line);
+  if(!LOGEL) return;
+  var d=document.createElement('div'); if(cls) d.className=cls; d.textContent=line;
+  LOGEL.appendChild(d); LOGEL.scrollTop=LOGEL.scrollHeight;
+}
+window.addEventListener('error',function(e){ log('ERROR JS: '+e.message,'bad'); });
+window.addEventListener('unhandledrejection',function(e){ var r=e.reason; log('PROMESA RECHAZADA: '+((r&&r.name)||'')+' '+((r&&r.message)||r),'bad'); });
+function copyReport(){
+  var txt=LINES.join('\n'), ta=document.getElementById('rep'), done=false;
+  ta.value=txt; ta.style.display='block';
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){ done=true;
+    navigator.clipboard.writeText(txt).then(function(){ log('Informe copiado al portapapeles','ok'); },
+      function(){ ta.select(); log('Copia automática bloqueada: mantén pulsado el cuadro de texto y copia, o haz una captura','warn'); }); } }catch(e){}
+  if(!done){ ta.select(); try{ document.execCommand('copy'); log('Informe copiado','ok'); }catch(e){ log('Copia automática no disponible: haz una captura','warn'); } }
+}
+function uaState(){ return navigator.userActivation ? ('hasBeenActive='+navigator.userActivation.hasBeenActive+' isActive='+navigator.userActivation.isActive) : 'API userActivation no disponible'; }
+function envHeader(){
+  var ua=navigator.userAgent;
+  log('UA: '+ua);
+  log('Contenedor: '+(/Instagram/.test(ua)?'INSTAGRAM (el UA contiene "Instagram")':'sin "Instagram" en el UA')+(/FBAN|FBAV/.test(ua)?' · Facebook':'')+(/; wv\)/.test(ua)?' · Android WebView (token "wv")':''), /Instagram/.test(ua)?'ok':'warn');
+  log('Chromium/WebView: '+((ua.match(/Chrome\/([\d.]+)/)||[])[1]||'n/d')+' · Instagram: '+((ua.match(/Instagram ([\d.]+)/)||[])[1]||'n/d'));
+}
+
+var VID='1b39f002-889c-4ccd-9d41-3c4e9781a593', V=document.getElementById('v'), H=document.getElementById('h'), cur=null, samples=[], playAt=null;
+envHeader();
+var qh=(location.search.match(/[?&]h=([^&]+)/)||[])[1]; try{ H.value=decodeURIComponent(qh||'')||localStorage.getItem('bunnyHost')||''; }catch(e){ H.value=qh||''; }
+function url(kind){
+  var h=H.value.replace(/^https?:\/\//,'').replace(/\/+$/,''); if(!h){ log('Escribe primero el hostname del CDN','bad'); return null; }
+  try{ localStorage.setItem('bunnyHost',h); }catch(e){}
+  return 'https://'+h+'/'+VID+'/'+({mp4_720:'play_720p.mp4', mp4_360:'play_360p.mp4', hls:'playlist.m3u8'}[kind]);
+}
+function snap(tag){ var b=V.buffered; log(tag+' t='+V.currentTime.toFixed(2)+' readyState='+V.readyState+' networkState='+V.networkState+' paused='+V.paused+' muted='+V.muted+' buffered='+(b&&b.length?b.end(b.length-1).toFixed(1):'0')); }
+function adv(){ var a=samples; if(a.length<2) return 0; var l=a[a.length-1], i=a.length-1; while(i>0&&l.at-a[i].at<3) i--; return l.s-a[i].s; }
+function load(kind){
+  var u=url(kind); if(!u) return; cur=kind; samples=[]; playAt=null;
+  log('Cargando '+kind+': '+u);
+  if(kind==='hls') log('canPlayType HLS nativo = '+JSON.stringify(V.canPlayType('application/vnd.apple.mpegurl'))+' (vacío = este navegador no lo reproduce sin motor JS)', V.canPlayType('application/vnd.apple.mpegurl')?'ok':'warn');
+  fetch(u,{method:'HEAD'}).then(function(r){ log('fetch HEAD → HTTP '+r.status+' · content-type='+r.headers.get('content-type')+' · length='+r.headers.get('content-length'), r.ok?'ok':'bad'); },
+    function(e){ log('fetch HEAD bloqueado ('+e.name+': '+e.message+') → probando no-cors','warn');
+      fetch(u,{method:'HEAD',mode:'no-cors'}).then(function(r){ log('no-cors → '+r.type+' (opaque = la red respondió; la CORS de la CDN no deja leer el estado)'); },function(e2){ log('no-cors también falló: '+e2.message+' → problema de red/bloqueo','bad'); }); });
+  V.src=u; V.load();
+}
+['loadstart','loadedmetadata','loadeddata','canplay','canplaythrough','play','playing','waiting','stalled','suspend','pause','ended','seeking','seeked'].forEach(function(n){
+  V.addEventListener(n,function(){ log('video: '+n+' (t='+V.currentTime.toFixed(2)+', readyState='+V.readyState+')'); if(n==='play') playAt=performance.now()/1000; });
+});
+V.addEventListener('error',function(){ var e=V.error; log('video: ERROR code='+(e&&e.code)+' ('+({1:'ABORTED',2:'NETWORK',3:'DECODE',4:'SRC_NOT_SUPPORTED'}[e&&e.code]||'?')+') msg='+(e&&e.message),'bad'); });
+var lastTu=-5;
+V.addEventListener('timeupdate',function(){ var t=performance.now()/1000; if(t-lastTu>=2){ lastTu=t; snap('timeupdate'); } });
+function jsPlay(m){
+  if(!cur){ log('Primero carga un formato','bad'); return; }
+  log('— Toque · play() '+(m?'muteado':'con sonido')+' · '+uaState());
+  V.muted=m; var p=V.play();
+  if(p&&p.then) p.then(function(){ log('play() resuelto'); },function(e){ log('play() RECHAZADO: '+e.name+' '+e.message,'bad'); });
+}
+setInterval(function(){
+  var el=document.getElementById('verdict'), t=performance.now()/1000, msg;
+  if(!cur) return;
+  samples.push({s:V.currentTime,at:t}); if(samples.length>80) samples.shift();   // lectura directa, no depende de eventos
+  if(V.error) msg='✘ ERROR de medio code='+V.error.code;
+  else if(!playAt) msg='… cargado ('+cur+'), pulsa play';
+  else if(adv()>=1.5&&!V.paused) msg='✔ REPRODUCIENDO: el tiempo avanza (+'+adv().toFixed(1)+' s en ~3 s)';
+  else if(t-playAt>4) msg='✘ play pedido hace '+(t-playAt).toFixed(0)+' s y el tiempo NO avanza (readyState='+V.readyState+', paused='+V.paused+')';
+  else msg='… comprobando avance';
+  el.textContent='Veredicto: '+msg; el.style.color=msg.charAt(0)==='✘'?'#f87171':(msg.charAt(0)==='✔'?'#4ade80':'#fbbf24');
+},500);
+
+</script>
+</body></html>

@@ -1,0 +1,17 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Diagnóstico de vídeo · Instagram Android</title>
+<style>body{margin:0;padding:14px;background:#0b0b0b;color:#eee;font:15px/1.5 system-ui,sans-serif}
+a{color:#7cc4ff;font-weight:600} li{margin:10px 0;color:#bbb} code{color:#fbbf24} h1{font-size:19px}</style></head><body>
+<h1>Diagnóstico del vídeo en el navegador de Instagram</h1>
+<p>Abre cada prueba <b>desde Instagram, en el mismo móvil donde falla</b> (arriba debe verse tu dominio con «Instagram» debajo, como en tus capturas). Haz después las mismas pruebas en Chrome como referencia.</p>
+<ol>
+<li><b>Paso 0 · sin código.</b> Abre desde Instagram esta URL tal cual: <code>https://player.mediadelivery.net/play/804611/1b39f002-889c-4ccd-9d41-3c4e9781a593</code> (la página de Bunny como documento principal, sin iframe ni nuestra página).</li>
+<li><a href="1a-bunny-puro-host-player.html">1a · Bunny puro, host player.mediadelivery.net</a></li>
+<li><a href="1b-bunny-puro-host-iframe.html">1b · Bunny puro, host iframe.mediadelivery.net</a> (el que usa la landing)</li>
+<li><a href="2-entorno-y-video-local.html">2 · Entorno + vídeo local H.264 (sin Bunny)</a></li>
+<li><a href="3-bunny-observado.html">3 · Bunny + Player.js, solo observación</a> · <a href="3-bunny-observado.html?autoplay=1">con autoplay muteado</a></li>
+<li><a href="4-video-directo-cdn.html">4 · &lt;video&gt; directo con la CDN</a> (necesita el hostname del CDN)</li>
+</ol>
+<p><b>En cada prueba anota:</b> qué se ve al cargar (póster, spinner, error), qué pasa al pulsar Play (nada, spinner, imagen negra, sonido sin imagen, error), si el contador de tiempo avanza, y el texto del informe de las pruebas 2-4 (botón «Copiar / mostrar informe» o captura).</p>
+</body></html>

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Prueba 3 · Bunny + Player.js</title>
+<style>
+ body{margin:0;padding:14px;background:#0b0b0b;color:#eee;font:15px/1.45 system-ui,sans-serif}
+ h1{font-size:18px;margin:0 0 6px} h2{font-size:15px;margin:16px 0 4px;color:#fbbf24}
+ p,li{color:#bbb;margin:6px 0} a{color:#7cc4ff} code{color:#fbbf24}
+ button{font:600 15px system-ui;padding:12px 14px;margin:6px 6px 6px 0;border:0;border-radius:8px;background:#1f6feb;color:#fff}
+ button.sec{background:#374151}
+ #log{white-space:pre-wrap;word-break:break-word;font:12px/1.4 ui-monospace,monospace;background:#000;border:1px solid #333;border-radius:8px;padding:8px;max-height:46vh;overflow:auto}
+ .ok{color:#4ade80}.bad{color:#f87171}.warn{color:#fbbf24}
+ #verdict{font:600 14px system-ui;padding:10px;border-radius:8px;background:#1f2937;margin:8px 0}
+ video{display:block;width:100%;background:#000;border-radius:8px}
+ iframe{display:block;width:100%;aspect-ratio:16/9;border:0;border-radius:8px;background:#000}
+ input{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid #444;background:#111;color:#eee;font:14px ui-monospace,monospace}
+ textarea{display:none;width:100%;box-sizing:border-box;height:160px;background:#000;color:#ddd;font:11px ui-monospace,monospace}
+ table{border-collapse:collapse;width:100%;font-size:13px} td,th{border:1px solid #333;padding:6px;text-align:left;vertical-align:top}
+</style></head><body>
+<h1>Prueba 3 · Bunny estándar + Player.js (solo observar)</h1>
+<p id="cfg"></p>
+<iframe id="f" title="Bunny" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>
+<div id="verdict">Veredicto: esperando…</div>
+<p><b>Experimento 1</b> (recarga la página antes): pulsa el Play DENTRO del vídeo de Bunny.<br>
+<b>Experimento 2</b> (recarga la página antes): NO toques el vídeo; usa los botones de abajo.</p>
+<button onclick="apiPlay()">API: play()</button>
+<button onclick="apiSeq()">API: secuencia de la landing</button>
+<button class="sec" onclick="apiPause()">API: pause()</button>
+<button class="sec" onclick="apiState()">Estado (getters)</button>
+<h2>Informe</h2>
+<button class="sec" onclick="copyReport()">Copiar / mostrar informe</button>
+<div id="log"></div><textarea id="rep" readonly></textarea>
+<script>
+
+var T0=performance.now(), LOGEL=document.getElementById('log'), LINES=[];
+function log(msg, cls){
+  var t=((performance.now()-T0)/1000).toFixed(2), line='['+t+'s] '+msg; LINES.push(line);
+  if(!LOGEL) return;
+  var d=document.createElement('div'); if(cls) d.className=cls; d.textContent=line;
+  LOGEL.appendChild(d); LOGEL.scrollTop=LOGEL.scrollHeight;
+}
+window.addEventListener('error',function(e){ log('ERROR JS: '+e.message,'bad'); });
+window.addEventListener('unhandledrejection',function(e){ var r=e.reason; log('PROMESA RECHAZADA: '+((r&&r.name)||'')+' '+((r&&r.message)||r),'bad'); });
+function copyReport(){
+  var txt=LINES.join('\n'), ta=document.getElementById('rep'), done=false;
+  ta.value=txt; ta.style.display='block';
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){ done=true;
+    navigator.clipboard.writeText(txt).then(function(){ log('Informe copiado al portapapeles','ok'); },
+      function(){ ta.select(); log('Copia automática bloqueada: mantén pulsado el cuadro de texto y copia, o haz una captura','warn'); }); } }catch(e){}
+  if(!done){ ta.select(); try{ document.execCommand('copy'); log('Informe copiado','ok'); }catch(e){ log('Copia automática no disponible: haz una captura','warn'); } }
+}
+function uaState(){ return navigator.userActivation ? ('hasBeenActive='+navigator.userActivation.hasBeenActive+' isActive='+navigator.userActivation.isActive) : 'API userActivation no disponible'; }
+function envHeader(){
+  var ua=navigator.userAgent;
+  log('UA: '+ua);
+  log('Contenedor: '+(/Instagram/.test(ua)?'INSTAGRAM (el UA contiene "Instagram")':'sin "Instagram" en el UA')+(/FBAN|FBAV/.test(ua)?' · Facebook':'')+(/; wv\)/.test(ua)?' · Android WebView (token "wv")':''), /Instagram/.test(ua)?'ok':'warn');
+  log('Chromium/WebView: '+((ua.match(/Chrome\/([\d.]+)/)||[])[1]||'n/d')+' · Instagram: '+((ua.match(/Instagram ([\d.]+)/)||[])[1]||'n/d'));
+}
+
+var HOSTS={player:'https://player.mediadelivery.net/embed/804611/1b39f002-889c-4ccd-9d41-3c4e9781a593', iframe:'https://iframe.mediadelivery.net/embed/804611/1b39f002-889c-4ccd-9d41-3c4e9781a593'};
+var Q=location.search, HOST=Q.indexOf('host=iframe')>-1?'iframe':'player', AUTO=Q.indexOf('autoplay=1')>-1;
+var SRC=HOSTS[HOST]+(AUTO?'?autoplay=true&muted=true':'?autoplay=false');
+document.getElementById('cfg').innerHTML='Modo: <code>host='+HOST+'</code> · <code>'+(AUTO?'autoplay=true&muted=true (como la landing)':'autoplay=false')+'</code><br>Variantes: <a href="?">sin autoplay</a> · <a href="?autoplay=1">autoplay muteado</a> · <a href="?host=iframe">host iframe</a> · <a href="?host=iframe&autoplay=1">host iframe + autoplay</a>';
+envHeader();
+log('SRC='+SRC);
+var f=document.getElementById('f'), P=null;
+var S={readyAt:null, loadAt:null, plays:0, pauses:0, errors:[], tu:[], lastTuLog:-5, playAt:null};
+function now(){ return performance.now()/1000; }
+function adv(){ var a=S.tu; if(a.length<2) return 0; var last=a[a.length-1], i=a.length-1; while(i>0&&last.at-a[i].at<3) i--; return last.s-a[i].s; }
+function render(){
+  var el=document.getElementById('verdict'), t=now(), msg;
+  if(typeof playerjs==='undefined') msg='✘ Player.js NO se cargó (script bloqueado o sin red)';
+  else if(!S.readyAt) msg=(S.loadAt&&t-S.loadAt>8)?'✘ SIN "ready" 8 s después de cargar el iframe: el canal Player.js no funciona':'… esperando "ready"';
+  else if(S.errors.length) msg='✘ ERROR de Bunny: '+S.errors[S.errors.length-1];
+  else if(S.plays===0) msg='✔ ready recibido · aún sin evento play';
+  else if(S.tu.length&&adv()>=1.5) msg='✔ REPRODUCIENDO: el tiempo avanza (+'+adv().toFixed(1)+' s en ~3 s)';
+  else if(S.playAt&&t-S.playAt>4) msg='✘ "play" recibido hace '+(t-S.playAt).toFixed(0)+' s pero el tiempo NO avanza (timeupdates: '+S.tu.length+')';
+  else msg='… play recibido, comprobando avance';
+  el.textContent='Veredicto: '+msg; el.style.color=msg.charAt(0)==='✘'?'#f87171':(msg.charAt(0)==='✔'?'#4ade80':'#fbbf24');
+}
+render(); setInterval(render,500);
+f.addEventListener('load',function(){ S.loadAt=now(); log('iframe: evento load'); });
+document.addEventListener('visibilitychange',function(){ log('visibilityState='+document.visibilityState); });
+if(typeof playerjs==='undefined'){ log('Player.js NO está disponible (¿bloqueado?)','bad'); f.src=SRC; }
+else{
+  f.src=SRC;                                   // Player.js ya está cargado ANTES de que el iframe cargue (como indica la documentación de Bunny)
+  P=new playerjs.Player(f);
+  P.on('ready',function(d){ S.readyAt=now(); log('EVENTO ready · payload='+JSON.stringify(d),'ok'); });
+  P.on('play',function(){ S.plays++; S.playAt=now(); log('EVENTO play','ok'); });
+  P.on('pause',function(){ S.pauses++; log('EVENTO pause'); });
+  P.on('ended',function(){ log('EVENTO ended'); });
+  P.on('seeked',function(){ log('EVENTO seeked'); });
+  P.on('progress',function(d){ log('EVENTO progress '+JSON.stringify(d)); });
+  P.on('error',function(d){ var s=JSON.stringify(d===undefined?null:d); S.errors.push(s); log('EVENTO error · payload='+s+' (vacío = fallo del propio medio; con code/message = comando fallido)','bad'); });
+  P.on('timeupdate',function(d){
+    if(typeof d==='string'){ try{ d=JSON.parse(d); }catch(e){} }
+    var s=Number(d&&d.seconds)||0; S.tu.push({s:s,at:now()}); if(S.tu.length>60) S.tu.shift();
+    if(S.tu.length<=3||now()-S.lastTuLog>=2){ S.lastTuLog=now(); log('timeupdate seconds='+s.toFixed(2)+' duration='+(d&&d.duration)); }
+  });
+}
+function guard(name, fn){ try{ log('→ '+name); fn(); }catch(e){ log(name+' lanzó excepción: '+e.message,'bad'); } }
+function apiPlay(){ log('Toque en la página (no en el iframe) · '+uaState()); guard('P.play()',function(){ P.play(); }); }
+function apiSeq(){ log('Toque en la página · '+uaState()); guard('setCurrentTime(0)',function(){ P.setCurrentTime(0); }); guard('unmute()',function(){ P.unmute(); }); guard('setVolume(100)',function(){ P.setVolume(100); }); guard('play()',function(){ P.play(); }); setTimeout(apiState,1500); }
+function apiPause(){ guard('P.pause()',function(){ P.pause(); }); }
+function apiState(){
+  ['getPaused','getMuted','getVolume','getDuration'].forEach(function(m){
+    var answered=false; try{ P[m](function(v){ answered=true; log(m+'() = '+JSON.stringify(v),'ok'); }); }catch(e){ log(m+' no existe: '+e.message,'warn'); return; }
+    setTimeout(function(){ if(!answered) log(m+'() SIN RESPUESTA en 2 s','bad'); },2000);
+  });
+}
+
+</script>
+</body></html>
